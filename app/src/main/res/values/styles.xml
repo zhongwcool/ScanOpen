@@ -1,10 +1,10 @@
 <resources>
 
-    <style name="Widget.Theme.扫码打开.ActionBar.Fullscreen" parent="Widget.AppCompat.ActionBar">
+    <style name="Widget.Theme.ScanOpen.ActionBar.Fullscreen" parent="Widget.AppCompat.ActionBar">
         <item name="android:background">@color/black_overlay</item>
     </style>
 
-    <style name="Widget.Theme.扫码打开.ButtonBar.Fullscreen" parent="">
+    <style name="Widget.Theme.ScanOpen.ButtonBar.Fullscreen" parent="">
         <item name="android:background">@color/black_overlay</item>
         <item name="android:buttonBarStyle">?android:attr/buttonBarStyle</item>
     </style>

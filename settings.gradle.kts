@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "扫码打开"
+rootProject.name = "ScanOpen"
 include(":app")
  

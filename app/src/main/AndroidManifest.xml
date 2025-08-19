@@ -18,13 +18,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.扫码打开">
+        android:theme="@style/Theme.ScanOpen">
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|screenSize"
             android:exported="true"
             android:label="@string/title_activity_main"
-            android:theme="@style/Theme.扫码打开.Fullscreen">
+            android:theme="@style/Theme.ScanOpen.Fullscreen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
