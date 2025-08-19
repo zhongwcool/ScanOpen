@@ -3,6 +3,7 @@ package com.js.scan;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
 import android.net.Uri;
@@ -12,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.WindowInsetsController;
 import android.webkit.URLUtil;
@@ -41,6 +43,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_PERMISSIONS = 10;
+    private static final int REQUEST_CODE_PICK_IMAGE = 11;
     private static final String[] REQUIRED_PERMISSIONS = new String[]{Manifest.permission.CAMERA};
 
     private ActivityMainBinding binding;
@@ -57,6 +60,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean soundEnabled = true;
     private Vibrator vibrator;
     private ToneGenerator toneGenerator;
+
+    // 相机状态
+    private boolean isFrontCamera = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +95,9 @@ public class MainActivity extends AppCompatActivity {
         // 初始化功能开关
         initFunctionToggles();
 
+        // 初始化底部按钮
+        initBottomButtons();
+        
         // 初始化扫描线动画
         initScanLineAnimation();
     }
@@ -157,6 +166,26 @@ public class MainActivity extends AppCompatActivity {
                 R.drawable.ic_sound_on : R.drawable.ic_sound_off);
     }
 
+    private void initBottomButtons() {
+        // 切换摄像头按钮
+        binding.switchCameraIcon.setOnClickListener(v -> switchCamera());
+
+        // 相册按钮
+        binding.albumIcon.setOnClickListener(v -> openAlbum());
+    }
+
+    private void switchCamera() {
+        isFrontCamera = !isFrontCamera;
+        Toast.makeText(this, "切换到" + (isFrontCamera ? "前置" : "后置") + "摄像头", Toast.LENGTH_SHORT).show();
+        startCamera();
+    }
+
+
+    private void openAlbum() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE);
+    }
+
     private void setFullscreenMode() {
         // 隐藏标题栏
         if (getSupportActionBar() != null) {
@@ -207,7 +236,8 @@ public class MainActivity extends AppCompatActivity {
 
                 imageAnalysis.setAnalyzer(cameraExecutor, new BarcodeAnalyzer());
 
-                CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+                CameraSelector cameraSelector = isFrontCamera ?
+                        CameraSelector.DEFAULT_FRONT_CAMERA : CameraSelector.DEFAULT_BACK_CAMERA;
 
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
@@ -237,6 +267,60 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, getString(R.string.camera_permission_required), Toast.LENGTH_LONG).show();
                 finish();
             }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CODE_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
+            Uri imageUri = data.getData();
+            if (imageUri != null) {
+                scanImageFromGallery(imageUri);
+            }
+        }
+    }
+
+    private void scanImageFromGallery(Uri imageUri) {
+        try {
+            // 暂停相机扫描
+            isScanning = false;
+
+            // 从相册加载图片
+            Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+
+            // 创建InputImage用于ML Kit扫描
+            InputImage image = InputImage.fromBitmap(bitmap, 0);
+
+            // 使用ML Kit扫描图片中的二维码
+            barcodeScanner.process(image)
+                    .addOnSuccessListener(barcodes -> {
+                        if (!barcodes.isEmpty()) {
+                            Barcode barcode = barcodes.get(0);
+                            if (barcode.getRawValue() != null) {
+                                handleBarcodeResult(barcode.getRawValue());
+                            } else {
+                                Toast.makeText(this, "未在图片中识别到二维码", Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            Toast.makeText(this, "未在图片中识别到二维码", Toast.LENGTH_SHORT).show();
+                        }
+                        // 恢复相机扫描
+                        isScanning = true;
+                        scanLineHandler.post(scanLineRunnable);
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "图片扫描失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        // 恢复相机扫描
+                        isScanning = true;
+                        scanLineHandler.post(scanLineRunnable);
+                    });
+
+        } catch (Exception e) {
+            Toast.makeText(this, "处理图片时出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            // 恢复相机扫描
+            isScanning = true;
+            scanLineHandler.post(scanLineRunnable);
         }
     }
 
