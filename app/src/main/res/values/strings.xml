@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">扫扫看</string>
+    <string name="title_activity_main">二维码扫描</string>
+    <string name="scanning">正在扫描...</string>
+    <string name="camera_permission_required">需要相机权限才能进行扫描</string>
+    <string name="camera_start_failed">相机启动失败: %s</string>
+</resources>
