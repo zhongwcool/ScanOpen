@@ -19,6 +19,8 @@ import android.view.WindowInsetsController;
 import android.webkit.URLUtil;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
@@ -43,7 +45,6 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_PERMISSIONS = 10;
-    private static final int REQUEST_CODE_PICK_IMAGE = 11;
     private static final String[] REQUIRED_PERMISSIONS = new String[]{Manifest.permission.CAMERA};
 
     private ActivityMainBinding binding;
@@ -63,6 +64,9 @@ public class MainActivity extends AppCompatActivity {
 
     // 相机状态
     private boolean isFrontCamera = false;
+
+    // Activity Result Launcher for picking images
+    private ActivityResultLauncher<Intent> pickImageLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,6 +104,23 @@ public class MainActivity extends AppCompatActivity {
         
         // 初始化扫描线动画
         initScanLineAnimation();
+
+        // 初始化 Activity Result Launcher
+        initActivityResultLauncher();
+    }
+
+    private void initActivityResultLauncher() {
+        pickImageLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        Uri imageUri = result.getData().getData();
+                        if (imageUri != null) {
+                            scanImageFromGallery(imageUri);
+                        }
+                    }
+                }
+        );
     }
 
     private void initScanLineAnimation() {
@@ -183,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void openAlbum() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        startActivityForResult(intent, REQUEST_CODE_PICK_IMAGE);
+        pickImageLauncher.launch(intent);
     }
 
     private void setFullscreenMode() {
@@ -207,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
                         0
                 );
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        } else {
             // Android 5.0+ (API 21+)
             getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
             getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
@@ -270,16 +291,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_PICK_IMAGE && resultCode == RESULT_OK && data != null) {
-            Uri imageUri = data.getData();
-            if (imageUri != null) {
-                scanImageFromGallery(imageUri);
-            }
-        }
-    }
+
 
     private void scanImageFromGallery(Uri imageUri) {
         try {
@@ -326,8 +338,15 @@ public class MainActivity extends AppCompatActivity {
 
     private class BarcodeAnalyzer implements ImageAnalysis.Analyzer {
         @Override
+        @androidx.camera.core.ExperimentalGetImage
         public void analyze(@NonNull ImageProxy imageProxy) {
-            InputImage image = InputImage.fromMediaImage(imageProxy.getImage(), imageProxy.getImageInfo().getRotationDegrees());
+            android.media.Image mediaImage = imageProxy.getImage();
+            if (mediaImage == null) {
+                imageProxy.close();
+                return;
+            }
+
+            InputImage image = InputImage.fromMediaImage(mediaImage, imageProxy.getImageInfo().getRotationDegrees());
 
             barcodeScanner.process(image)
                     .addOnSuccessListener(barcodes -> {
@@ -348,11 +367,7 @@ public class MainActivity extends AppCompatActivity {
 
             // 振动提示
             if (vibrationEnabled && vibrator != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE));
-                } else {
-                    vibrator.vibrate(200);
-                }
+                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE));
             }
 
             // 声音提示
